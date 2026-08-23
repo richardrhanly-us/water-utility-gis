@@ -16,13 +16,27 @@ import LayerList from "@arcgis/core/widgets/LayerList";
 import * as geodesicBufferOperator from "@arcgis/core/geometry/operators/geodesicBufferOperator";
 import * as intersectsOperator from "@arcgis/core/geometry/operators/intersectsOperator";
 
+import {
+  hydrants,
+  valves,
+  waterMains,
+  serviceZones,
+} from "./data/utilityData";
+
+type NearbyAsset = {
+  assetId: string;
+  assetType: string;
+  status: string;
+};
+
 function App() {
   const mapDiv = useRef<HTMLDivElement | null>(null);
 
   const [assetFilter, setAssetFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedMainId, setSelectedMainId] = useState<string | null>(null);
-  const [nearbyAssetIds, setNearbyAssetIds] = useState<string[]>([]);
+  const [bufferDistance, setBufferDistance] = useState(500);
+  const [nearbyAssets, setNearbyAssets] = useState<NearbyAsset[]>([]);
 
   const hydrantLayerRef = useRef<GraphicsLayer | null>(null);
   const valveLayerRef = useRef<GraphicsLayer | null>(null);
@@ -90,7 +104,8 @@ function App() {
 
       const waterMainHit = response.results.find(
         (result) =>
-          result.type === "graphic" && result.graphic.layer === waterMainLayer,
+          result.type === "graphic" &&
+          result.graphic.layer === waterMainLayer
       );
 
       if (waterMainHit && waterMainHit.type === "graphic") {
@@ -98,354 +113,223 @@ function App() {
 
         selectedWaterMainRef.current = selectedGraphic;
 
-        setSelectedMainId(selectedGraphic.attributes?.assetId ?? null);
+        setSelectedMainId(
+          selectedGraphic.attributes?.assetId ?? null
+        );
 
-        setNearbyAssetIds([]);
+        setNearbyAssets([]);
         resultsLayer.removeAll();
       }
     });
 
-    const hydrant1 = new Graphic({
-      geometry: new Point({
-        longitude: -98.4936,
-        latitude: 29.4241,
-      }),
-      symbol: {
-        type: "simple-marker",
-        color: "red",
-        size: 10,
-        outline: {
-          color: "white",
-          width: 1,
-        },
-      },
-      attributes: {
-        assetId: "HYD-001",
-        assetType: "Hydrant",
-        status: "Active",
-      },
-      popupTemplate: {
-        title: "{assetId}",
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
+    const hydrantGraphics = hydrants.map(
+      (hydrant) =>
+        new Graphic({
+          geometry: new Point({
+            longitude: hydrant.longitude,
+            latitude: hydrant.latitude,
+          }),
+          symbol: {
+            type: "simple-marker",
+            color: "red",
+            size: 10,
+            outline: {
+              color: "white",
+              width: 1,
+            },
+          },
+          attributes: {
+            assetId: hydrant.assetId,
+            assetType: "Hydrant",
+            status: hydrant.status,
+            inspectionDate: hydrant.inspectionDate,
+            flowRatingGpm: hydrant.flowRatingGpm,
+          },
+          popupTemplate: {
+            title: "{assetId}",
+            content: [
               {
-                fieldName: "assetType",
-                label: "Asset Type",
-              },
-              {
-                fieldName: "status",
-                label: "Status",
+                type: "fields",
+                fieldInfos: [
+                  {
+                    fieldName: "assetType",
+                    label: "Asset Type",
+                  },
+                  {
+                    fieldName: "status",
+                    label: "Status",
+                  },
+                  {
+                    fieldName: "inspectionDate",
+                    label: "Inspection Date",
+                  },
+                  {
+                    fieldName: "flowRatingGpm",
+                    label: "Flow Rating (GPM)",
+                  },
+                ],
               },
             ],
           },
-        ],
-      },
-    });
+        })
+    );
 
-    const hydrant2 = new Graphic({
-      geometry: new Point({
-        longitude: -98.487,
-        latitude: 29.428,
-      }),
-      symbol: {
-        type: "simple-marker",
-        color: "red",
-        size: 10,
-        outline: {
-          color: "white",
-          width: 1,
-        },
-      },
-      attributes: {
-        assetId: "HYD-002",
-        assetType: "Hydrant",
-        status: "Inspection Due",
-      },
-      popupTemplate: {
-        title: "{assetId}",
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
+    const valveGraphics = valves.map(
+      (valve) =>
+        new Graphic({
+          geometry: new Point({
+            longitude: valve.longitude,
+            latitude: valve.latitude,
+          }),
+          symbol: {
+            type: "simple-marker",
+            color: "orange",
+            size: 9,
+            outline: {
+              color: "white",
+              width: 1,
+            },
+          },
+          attributes: {
+            assetId: valve.assetId,
+            assetType: "Valve",
+            valveType: valve.valveType,
+            status: valve.status,
+            installYear: valve.installYear,
+          },
+          popupTemplate: {
+            title: "{assetId}",
+            content: [
               {
-                fieldName: "assetType",
-                label: "Asset Type",
-              },
-              {
-                fieldName: "status",
-                label: "Status",
+                type: "fields",
+                fieldInfos: [
+                  {
+                    fieldName: "assetType",
+                    label: "Asset Type",
+                  },
+                  {
+                    fieldName: "valveType",
+                    label: "Valve Type",
+                  },
+                  {
+                    fieldName: "status",
+                    label: "Status",
+                  },
+                  {
+                    fieldName: "installYear",
+                    label: "Install Year",
+                  },
+                ],
               },
             ],
           },
-        ],
-      },
-    });
+        })
+    );
 
-    const valve1 = new Graphic({
-      geometry: new Point({
-        longitude: -98.4965,
-        latitude: 29.423,
-      }),
-      symbol: {
-        type: "simple-marker",
-        color: "orange",
-        size: 9,
-        outline: {
-          color: "white",
-          width: 1,
-        },
-      },
-      attributes: {
-        assetId: "VALVE-001",
-        assetType: "Valve",
-        valveType: "Gate Valve",
-        status: "Open",
-        installYear: 2016,
-      },
-      popupTemplate: {
-        title: "{assetId}",
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
+    const waterMainGraphics = waterMains.map(
+      (main) =>
+        new Graphic({
+          geometry: new Polyline({
+            paths: main.paths,
+            spatialReference: {
+              wkid: 4326,
+            },
+          }),
+          symbol: {
+            type: "simple-line",
+            color: "blue",
+            width: 4,
+          },
+          attributes: {
+            assetId: main.assetId,
+            assetType: "Water Main",
+            diameter: main.diameter,
+            material: main.material,
+            installYear: main.installYear,
+            condition: main.condition,
+            status: main.status,
+          },
+          popupTemplate: {
+            title: "{assetId}",
+            content: [
               {
-                fieldName: "assetType",
-                label: "Asset Type",
-              },
-              {
-                fieldName: "valveType",
-                label: "Valve Type",
-              },
-              {
-                fieldName: "status",
-                label: "Status",
-              },
-              {
-                fieldName: "installYear",
-                label: "Install Year",
+                type: "fields",
+                fieldInfos: [
+                  {
+                    fieldName: "assetType",
+                    label: "Asset Type",
+                  },
+                  {
+                    fieldName: "diameter",
+                    label: "Diameter",
+                  },
+                  {
+                    fieldName: "material",
+                    label: "Material",
+                  },
+                  {
+                    fieldName: "installYear",
+                    label: "Install Year",
+                  },
+                  {
+                    fieldName: "condition",
+                    label: "Condition",
+                  },
+                  {
+                    fieldName: "status",
+                    label: "Status",
+                  },
+                ],
               },
             ],
           },
-        ],
-      },
-    });
+        })
+    );
 
-    const valve2 = new Graphic({
-      geometry: new Point({
-        longitude: -98.487,
-        latitude: 29.428,
-      }),
-      symbol: {
-        type: "simple-marker",
-        color: "orange",
-        size: 9,
-        outline: {
-          color: "white",
-          width: 1,
-        },
-      },
-      attributes: {
-        assetId: "VALVE-002",
-        assetType: "Valve",
-        valveType: "Butterfly Valve",
-        status: "Open",
-        installYear: 2019,
-      },
-      popupTemplate: {
-        title: "{assetId}",
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
+    const serviceZoneGraphics = serviceZones.map(
+      (zone) =>
+        new Graphic({
+          geometry: new Polygon({
+            rings: zone.rings,
+          }),
+          symbol: {
+            type: "simple-fill",
+            color: [0, 120, 255, 0.12],
+            outline: {
+              color: [0, 120, 255],
+              width: 2,
+            },
+          },
+          attributes: {
+            zoneId: zone.zoneId,
+            zoneName: zone.zoneName,
+            status: zone.status,
+          },
+          popupTemplate: {
+            title: "{zoneName}",
+            content: [
               {
-                fieldName: "assetType",
-                label: "Asset Type",
-              },
-              {
-                fieldName: "valveType",
-                label: "Valve Type",
-              },
-              {
-                fieldName: "status",
-                label: "Status",
-              },
-              {
-                fieldName: "installYear",
-                label: "Install Year",
+                type: "fields",
+                fieldInfos: [
+                  {
+                    fieldName: "zoneId",
+                    label: "Zone ID",
+                  },
+                  {
+                    fieldName: "status",
+                    label: "Status",
+                  },
+                ],
               },
             ],
           },
-        ],
-      },
-    });
+        })
+    );
 
-    const waterMain = new Graphic({
-      geometry: new Polyline({
-        paths: [
-          [
-            [-98.5005, 29.4205],
-            [-98.4965, 29.423],
-            [-98.4936, 29.4241],
-            [-98.487, 29.428],
-            [-98.4815, 29.431],
-          ],
-        ],
-        spatialReference: {
-          wkid: 4326,
-        },
-      }),
-      symbol: {
-        type: "simple-line",
-        color: "blue",
-        width: 4,
-      },
-      attributes: {
-        assetId: "MAIN-001",
-        assetType: "Water Main",
-        diameter: "12 in",
-        material: "PVC",
-        status: "Active",
-      },
-      popupTemplate: {
-        title: "{assetId}",
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
-              {
-                fieldName: "assetType",
-                label: "Asset Type",
-              },
-              {
-                fieldName: "diameter",
-                label: "Diameter",
-              },
-              {
-                fieldName: "material",
-                label: "Material",
-              },
-              {
-                fieldName: "status",
-                label: "Status",
-              },
-            ],
-          },
-        ],
-      },
-    });
-
-    const waterMain2 = new Graphic({
-      geometry: new Polyline({
-        paths: [
-          [
-            [-98.4936, 29.4241],
-            [-98.4905, 29.4205],
-            [-98.4865, 29.4175],
-          ],
-        ],
-        spatialReference: {
-          wkid: 4326,
-        },
-      }),
-      symbol: {
-        type: "simple-line",
-        color: "blue",
-        width: 3,
-      },
-      attributes: {
-        assetId: "MAIN-002",
-        assetType: "Water Main",
-        diameter: "8 in",
-        material: "Ductile Iron",
-        status: "Active",
-        installYear: 2008,
-      },
-      popupTemplate: {
-        title: "{assetId}",
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
-              {
-                fieldName: "assetType",
-                label: "Asset Type",
-              },
-              {
-                fieldName: "diameter",
-                label: "Diameter",
-              },
-              {
-                fieldName: "material",
-                label: "Material",
-              },
-              {
-                fieldName: "status",
-                label: "Status",
-              },
-              {
-                fieldName: "installYear",
-                label: "Install Year",
-              },
-            ],
-          },
-        ],
-      },
-    });
-
-    const serviceZone = new Graphic({
-      geometry: new Polygon({
-        rings: [
-          [
-            [-98.505, 29.417],
-            [-98.478, 29.417],
-            [-98.478, 29.435],
-            [-98.505, 29.435],
-            [-98.505, 29.417],
-          ],
-        ],
-      }),
-      symbol: {
-        type: "simple-fill",
-        color: [0, 120, 255, 0.12],
-        outline: {
-          color: [0, 120, 255],
-          width: 2,
-        },
-      },
-      attributes: {
-        zoneId: "ZONE-01",
-        zoneName: "Central Service Zone",
-        status: "Normal",
-      },
-      popupTemplate: {
-        title: "{zoneName}",
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
-              {
-                fieldName: "zoneId",
-                label: "Zone ID",
-              },
-              {
-                fieldName: "status",
-                label: "Status",
-              },
-            ],
-          },
-        ],
-      },
-    });
-
-    serviceZoneLayer.add(serviceZone);
-
-    waterMainLayer.addMany([waterMain, waterMain2]);
-
-    hydrantLayer.addMany([hydrant1, hydrant2]);
-
-    valveLayer.addMany([valve1, valve2]);
+    serviceZoneLayer.addMany(serviceZoneGraphics);
+    waterMainLayer.addMany(waterMainGraphics);
+    hydrantLayer.addMany(hydrantGraphics);
+    valveLayer.addMany(valveGraphics);
 
     return () => {
       clickHandler.remove();
@@ -468,9 +352,11 @@ function App() {
       return;
     }
 
-    hydrantLayer.visible = assetFilter === "all" || assetFilter === "hydrants";
+    hydrantLayer.visible =
+      assetFilter === "all" || assetFilter === "hydrants";
 
-    valveLayer.visible = assetFilter === "all" || assetFilter === "valves";
+    valveLayer.visible =
+      assetFilter === "all" || assetFilter === "valves";
 
     waterMainLayer.visible =
       assetFilter === "all" || assetFilter === "water-mains";
@@ -480,7 +366,8 @@ function App() {
         if (statusFilter === "all") {
           graphic.visible = true;
         } else {
-          graphic.visible = graphic.attributes?.status === statusFilter;
+          graphic.visible =
+            graphic.attributes?.status === statusFilter;
         }
       });
     };
@@ -514,10 +401,10 @@ function App() {
 
     const bufferGeometry = geodesicBufferOperator.execute(
       selectedMain.geometry,
-      500,
+      bufferDistance,
       {
         unit: "feet",
-      },
+      }
     );
 
     if (!bufferGeometry) {
@@ -543,21 +430,30 @@ function App() {
       ...valveLayer.graphics.toArray(),
     ];
 
-    const nearbyAssets = candidateAssets.filter((graphic) => {
+    const intersectingAssets = candidateAssets.filter((graphic) => {
       if (!graphic.geometry) {
         return false;
       }
 
-      return intersectsOperator.execute(bufferGeometry, graphic.geometry);
+      return intersectsOperator.execute(
+        bufferGeometry,
+        graphic.geometry
+      );
     });
 
-    const resultIds = nearbyAssets
-      .map((graphic) => graphic.attributes?.assetId)
-      .filter((assetId): assetId is string => Boolean(assetId));
+    const resultAssets: NearbyAsset[] =
+      intersectingAssets.map((graphic) => ({
+        assetId:
+          graphic.attributes?.assetId ?? "Unknown",
+        assetType:
+          graphic.attributes?.assetType ?? "Unknown",
+        status:
+          graphic.attributes?.status ?? "Unknown",
+      }));
 
-    setNearbyAssetIds(resultIds);
+    setNearbyAssets(resultAssets);
 
-    nearbyAssets.forEach((graphic) => {
+    intersectingAssets.forEach((graphic) => {
       if (!graphic.geometry) {
         return;
       }
@@ -596,8 +492,9 @@ function App() {
           background: "white",
           padding: "12px",
           borderRadius: "6px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
-          minWidth: "180px",
+          boxShadow:
+            "0 2px 8px rgba(0,0,0,0.25)",
+          minWidth: "200px",
         }}
       >
         <div>
@@ -606,12 +503,16 @@ function App() {
 
         <select
           value={assetFilter}
-          onChange={(e) => setAssetFilter(e.target.value)}
+          onChange={(e) =>
+            setAssetFilter(e.target.value)
+          }
         >
           <option value="all">All Assets</option>
           <option value="hydrants">Hydrants</option>
           <option value="valves">Valves</option>
-          <option value="water-mains">Water Mains</option>
+          <option value="water-mains">
+            Water Mains
+          </option>
         </select>
 
         <div style={{ marginTop: "10px" }}>
@@ -620,12 +521,19 @@ function App() {
 
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) =>
+            setStatusFilter(e.target.value)
+          }
         >
           <option value="all">All Statuses</option>
           <option value="Active">Active</option>
           <option value="Open">Open</option>
-          <option value="Inspection Due">Inspection Due</option>
+          <option value="Inspection Due">
+            Inspection Due
+          </option>
+          <option value="Maintenance Due">
+            Maintenance Due
+          </option>
         </select>
 
         <div
@@ -643,6 +551,28 @@ function App() {
             {selectedMainId ?? "None selected"}
           </div>
 
+          <div style={{ marginTop: "10px" }}>
+            <strong>Buffer Distance</strong>
+          </div>
+
+          <select
+            value={bufferDistance}
+            onChange={(e) =>
+              setBufferDistance(
+                Number(e.target.value)
+              )
+            }
+            disabled={!selectedMainId}
+            style={{
+              marginTop: "5px",
+              width: "100%",
+            }}
+          >
+            <option value={250}>250 ft</option>
+            <option value={500}>500 ft</option>
+            <option value={1000}>1000 ft</option>
+          </select>
+
           <button
             type="button"
             disabled={!selectedMainId}
@@ -651,7 +581,9 @@ function App() {
               marginTop: "10px",
               width: "100%",
               padding: "7px 10px",
-              cursor: selectedMainId ? "pointer" : "not-allowed",
+              cursor: selectedMainId
+                ? "pointer"
+                : "not-allowed",
             }}
           >
             Find Nearby Assets
@@ -670,25 +602,58 @@ function App() {
               <strong>Nearby Assets</strong>
             </div>
 
-            {nearbyAssetIds.length === 0 ? (
-              <div style={{ marginTop: "5px" }}>No results yet</div>
+            {nearbyAssets.length === 0 ? (
+              <div style={{ marginTop: "6px" }}>
+                No results yet
+              </div>
             ) : (
               <>
-                <div style={{ marginTop: "5px" }}>
-                  {nearbyAssetIds.length} found
-                </div>
-
-                <ul
+                <div
                   style={{
                     marginTop: "6px",
-                    marginBottom: 0,
-                    paddingLeft: "20px",
+                    marginBottom: "8px",
+                    fontSize: "14px",
                   }}
                 >
-                  {nearbyAssetIds.map((assetId) => (
-                    <li key={assetId}>{assetId}</li>
-                  ))}
-                </ul>
+                  {nearbyAssets.length} found
+                </div>
+
+                {nearbyAssets.map((asset) => (
+                  <div
+                    key={asset.assetId}
+                    style={{
+                      marginTop: "8px",
+                      padding: "8px",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      background: "#f8f8f8",
+                    }}
+                  >
+                    <div>
+                      <strong>
+                        {asset.assetId}
+                      </strong>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "3px",
+                        fontSize: "14px",
+                      }}
+                    >
+                      {asset.assetType}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "2px",
+                        fontSize: "13px",
+                      }}
+                    >
+                      Status: {asset.status}
+                    </div>
+                  </div>
+                ))}
               </>
             )}
           </div>
