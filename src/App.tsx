@@ -17,6 +17,7 @@ import * as geodesicBufferOperator from "@arcgis/core/geometry/operators/geodesi
 import * as intersectsOperator from "@arcgis/core/geometry/operators/intersectsOperator";
 
 import { hydrants, valves, waterMains, serviceZones } from "./data/utilityData";
+import { matchesWaterMainFilters } from "./utils/filterWaterMains";
 
 type NearbyAsset = {
   assetId: string;
@@ -409,35 +410,20 @@ function App() {
     });
 
     waterMainLayer.graphics.forEach((graphic) => {
-      const matchesStatus =
-        statusFilter === "all" || graphic.attributes?.status === statusFilter;
-
-      const matchesMaterial =
-        materialFilter === "all" ||
-        graphic.attributes?.material === materialFilter;
-
-      const matchesCondition =
-        conditionFilter === "all" ||
-        graphic.attributes?.condition === conditionFilter;
-
-      const installYear = graphic.attributes?.installYear;
-
-      const matchesInstallYear =
-        installYearFilter === "all" ||
-        (installYearFilter === "before-2000" && installYear < 2000) ||
-        (installYearFilter === "2000-2009" &&
-          installYear >= 2000 &&
-          installYear <= 2009) ||
-        (installYearFilter === "2010-2019" &&
-          installYear >= 2010 &&
-          installYear <= 2019) ||
-        (installYearFilter === "2020-plus" && installYear >= 2020);
-
-      graphic.visible =
-        matchesStatus &&
-        matchesMaterial &&
-        matchesCondition &&
-        matchesInstallYear;
+      graphic.visible = matchesWaterMainFilters(
+        {
+          status: graphic.attributes?.status,
+          material: graphic.attributes?.material,
+          condition: graphic.attributes?.condition,
+          installYear: graphic.attributes?.installYear,
+        },
+        {
+          statusFilter,
+          materialFilter,
+          conditionFilter,
+          installYearFilter,
+        },
+      );
     });
   }, [
     assetFilter,
