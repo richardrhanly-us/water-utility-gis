@@ -6,6 +6,10 @@ An interactive GIS web application for visualizing, filtering, and analyzing sim
 
 The project is designed as a utility-operations dashboard that demonstrates GIS application development concepts including spatial data visualization, asset filtering, feature inspection, and proximity analysis.
 
+## Screenshot
+
+![Water Utility GIS Operations Dashboard](public/images/GIS-image.png)
+
 ## Features
 
 - Interactive ArcGIS map centered on San Antonio, Texas
