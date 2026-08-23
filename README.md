@@ -1,75 +1,179 @@
-# React + TypeScript + Vite
+![CI](https://github.com/richardrhanly-us/water-utility-gis/actions/workflows/ci.yml/badge.svg)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+# Water Utility GIS Operations Dashboard
 
-Currently, two official plugins are available:
+An interactive GIS web application for visualizing, filtering, and analyzing simulated water utility infrastructure.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The project is designed as a utility-operations dashboard that demonstrates GIS application development concepts including spatial data visualization, asset filtering, feature inspection, and proximity analysis.
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Interactive ArcGIS map centered on San Antonio, Texas
+- Simulated water utility infrastructure, including:
+  - Water mains
+  - Hydrants
+  - Valves
+  - Service zones
+- Layer visibility controls
+- Asset filtering by:
+  - Asset type
+  - Status
+  - Water-main material
+  - Water-main condition
+  - Installation year
+- Click-to-inspect asset details
+- Water-main selection for spatial analysis
+- Configurable 250 ft, 500 ft, and 1,000 ft buffer analysis
+- Identification of hydrants and valves located within the selected buffer
+- Map highlighting for spatial-analysis results
+- Reset controls for restoring the dashboard to its default state
 
-## Expanding the ESLint configuration
+## Spatial Analysis
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+The dashboard supports proximity analysis around selected water mains.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+When a water main is selected, the user can choose a buffer distance and run an analysis to identify nearby hydrants and valves.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+The application uses ArcGIS geometry operators to:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. Generate a geodesic buffer around the selected water main
+2. Test hydrant and valve geometries for intersection with the buffer
+3. Display matching assets in the interface
+4. Highlight matching assets on the map
 
-```
+This demonstrates common GIS workflows used in infrastructure and utility-management applications.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Technology Stack
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- React
+- TypeScript
+- Vite
+- ArcGIS Maps SDK for JavaScript
+- Vitest
+- ESLint
+- Git
+- GitHub
+- GitHub Actions
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Data Model
 
-```
+The project uses structured synthetic utility data stored in `src/data/utilityData.ts`.
+
+The dataset contains simulated:
+
+- Hydrant locations and inspection information
+- Valve locations, types, status, and installation years
+- Water-main geometries, materials, conditions, diameters, and installation years
+- Service-zone polygon geometry
+
+The dataset is intentionally simulated and does not represent actual utility infrastructure.
+
+## Testing
+
+Automated tests are implemented with Vitest.
+
+The current test suite validates:
+
+- Presence of utility asset datasets
+- Unique asset identifiers
+- Valid coordinate ranges
+- Valid water-main path geometry
+- Service-zone polygon structure
+- Supported water-main materials
+- Supported water-main conditions
+- Water-main filtering behavior
+- Combined filtering behavior
+- Installation-year filtering
+
+Run the test suite with:
+
+    npm test
+
+## Quality Checks
+
+The project uses three primary local quality checks:
+
+    npm test
+    npm run lint
+    npm run build
+
+These verify automated tests, linting, TypeScript compilation, and the production build.
+
+## Continuous Integration
+
+GitHub Actions runs the project's quality checks automatically on pushes and pull requests to the `main` branch.
+
+The CI workflow:
+
+1. Checks out the repository
+2. Configures Node.js
+3. Installs dependencies with `npm ci`
+4. Runs the Vitest test suite
+5. Runs ESLint
+6. Builds the production application
+
+The CI badge at the top of this README reflects the current workflow status.
+
+## Project Structure
+
+    water-utility-gis/
+    ├── .github/
+    │   └── workflows/
+    │       └── ci.yml
+    ├── src/
+    │   ├── data/
+    │   │   ├── utilityData.ts
+    │   │   └── utilityData.test.ts
+    │   ├── utils/
+    │   │   ├── filterWaterMains.ts
+    │   │   └── filterWaterMains.test.ts
+    │   ├── App.tsx
+    │   └── main.tsx
+    ├── package.json
+    └── README.md
+
+## Running Locally
+
+Clone the repository:
+
+    git clone https://github.com/richardrhanly-us/water-utility-gis.git
+
+Enter the project directory:
+
+    cd water-utility-gis
+
+Install dependencies:
+
+    npm install
+
+Start the development server:
+
+    npm run dev
+
+Then open the local address displayed by Vite.
+
+## Production Build
+
+Create a production build with:
+
+    npm run build
+
+The generated production files will be placed in the `dist/` directory.
+
+## Development Goals
+
+This project was built to practice and demonstrate:
+
+- GIS application development
+- Spatial data modeling
+- Interactive map interfaces
+- Geometry-based analysis
+- React and TypeScript application development
+- Testable application logic
+- Source control workflows
+- Continuous integration
+- Technical documentation
+
+## Disclaimer
+
+All utility assets, infrastructure geometries, attributes, and service-zone data in this project are synthetic and are provided solely for demonstration and software-development purposes.
