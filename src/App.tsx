@@ -16,9 +16,43 @@ import LayerList from "@arcgis/core/widgets/LayerList";
 import * as geodesicBufferOperator from "@arcgis/core/geometry/operators/geodesicBufferOperator";
 import * as intersectsOperator from "@arcgis/core/geometry/operators/intersectsOperator";
 
-import { hydrants, valves, waterMains, serviceZones } from "./data/utilityData";
 import { matchesWaterMainFilters } from "./utils/filterWaterMains";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+
+type HydrantApi = {
+  assetId: string;
+  longitude: number;
+  latitude: number;
+  status: string;
+  inspectionDate: string;
+  flowRatingGpm: number;
+};
+
+type ValveApi = {
+  assetId: string;
+  longitude: number;
+  latitude: number;
+  valveType: string;
+  status: string;
+  installYear: number;
+};
+
+type WaterMainApi = {
+  assetId: string;
+  paths: number[][][];
+  diameter: number;
+  material: string;
+  installYear: number;
+  condition: string;
+  status: string;
+};
+
+type ServiceZoneApi = {
+  zoneId: string;
+  zoneName: string;
+  status: string;
+  rings: number[][][];
+};
 
 type NearbyAsset = {
   assetId: string;
@@ -217,175 +251,251 @@ function App() {
       resultsLayer.removeAll();
     });
 
-    const hydrantGraphics = hydrants.map(
-      (hydrant) =>
-        new Graphic({
-          geometry: new Point({
-            longitude: hydrant.longitude,
-            latitude: hydrant.latitude,
-          }),
-          symbol: {
-            type: "simple-marker",
-            color: "red",
-            size: 10,
-            outline: {
-              color: "white",
-              width: 1,
-            },
-          },
-          attributes: {
-            assetId: hydrant.assetId,
-            assetType: "Hydrant",
-            status: hydrant.status,
-            inspectionDate: hydrant.inspectionDate,
-            flowRatingGpm: hydrant.flowRatingGpm,
-          },
-          popupTemplate: {
-            title: "{assetId}",
-            content: [
-              {
-                type: "fields",
-                fieldInfos: [
+    const loadHydrants = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/hydrants");
+
+        if (!response.ok) {
+          throw new Error(`Failed to load hydrants: ${response.status}`);
+        }
+
+        const hydrants: HydrantApi[] = await response.json();
+
+        const hydrantGraphics = hydrants.map(
+          (hydrant) =>
+            new Graphic({
+              geometry: new Point({
+                longitude: hydrant.longitude,
+                latitude: hydrant.latitude,
+              }),
+              symbol: {
+                type: "simple-marker",
+                color: "red",
+                size: 10,
+                outline: {
+                  color: "white",
+                  width: 1,
+                },
+              },
+              attributes: {
+                assetId: hydrant.assetId,
+                assetType: "Hydrant",
+                status: hydrant.status,
+                inspectionDate: hydrant.inspectionDate,
+                flowRatingGpm: hydrant.flowRatingGpm,
+              },
+              popupTemplate: {
+                title: "{assetId}",
+                content: [
                   {
-                    fieldName: "assetType",
-                    label: "Asset Type",
-                  },
-                  {
-                    fieldName: "status",
-                    label: "Status",
-                  },
-                  {
-                    fieldName: "inspectionDate",
-                    label: "Inspection Date",
-                  },
-                  {
-                    fieldName: "flowRatingGpm",
-                    label: "Flow Rating (GPM)",
+                    type: "fields",
+                    fieldInfos: [
+                      {
+                        fieldName: "assetType",
+                        label: "Asset Type",
+                      },
+                      {
+                        fieldName: "status",
+                        label: "Status",
+                      },
+                      {
+                        fieldName: "inspectionDate",
+                        label: "Inspection Date",
+                      },
+                      {
+                        fieldName: "flowRatingGpm",
+                        label: "Flow Rating (GPM)",
+                      },
+                    ],
                   },
                 ],
               },
-            ],
-          },
-        }),
+            }),
+        );
+
+        hydrantLayer.addMany(hydrantGraphics);
+
+      } catch (error) {
+        console.error("Unable to load hydrants from API:", error);
+      }
+    };
+
+    void loadHydrants();
+
+    const loadValves = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/valves");
+
+        if (!response.ok) {
+          throw new Error(`Failed to load valves: ${response.status}`);
+        }
+
+        const valves: ValveApi[] = await response.json();
+
+        const valveGraphics = valves.map(
+          (valve) =>
+            new Graphic({
+              geometry: new Point({
+                longitude: valve.longitude,
+                latitude: valve.latitude,
+              }),
+              symbol: {
+                type: "simple-marker",
+                color: "orange",
+                size: 9,
+                outline: {
+                  color: "white",
+                  width: 1,
+                },
+              },
+              attributes: {
+                assetId: valve.assetId,
+                assetType: "Valve",
+                valveType: valve.valveType,
+                status: valve.status,
+                installYear: valve.installYear,
+              },
+              popupTemplate: {
+                title: "{assetId}",
+                content: [
+                  {
+                    type: "fields",
+                    fieldInfos: [
+                      {
+                        fieldName: "assetType",
+                        label: "Asset Type",
+                      },
+                      {
+                        fieldName: "valveType",
+                        label: "Valve Type",
+                      },
+                      {
+                        fieldName: "status",
+                        label: "Status",
+                      },
+                      {
+                        fieldName: "installYear",
+                        label: "Install Year",
+                      },
+                    ],
+                  },
+                ],
+              },
+            }),
+        );
+
+        valveLayer.addMany(valveGraphics);
+      } catch (error) {
+        console.error("Unable to load valves from API:", error);
+      }
+    };
+
+    void loadValves();
+
+    const loadWaterMains = async () => {
+      try {
+        const response = await fetch(
+          "http://127.0.0.1:8000/api/water-mains",
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to load water mains: ${response.status}`,
+          );
+        }
+
+        const waterMains: WaterMainApi[] = await response.json();
+
+        const waterMainGraphics = waterMains.map(
+          (main) =>
+            new Graphic({
+              geometry: new Polyline({
+                paths: main.paths,
+                spatialReference: {
+                  wkid: 4326,
+                },
+              }),
+              symbol: {
+                type: "simple-line",
+                color: "blue",
+                width: 4,
+              },
+              attributes: {
+                assetId: main.assetId,
+                assetType: "Water Main",
+                diameter: main.diameter,
+                material: main.material,
+                installYear: main.installYear,
+                condition: main.condition,
+                status: main.status,
+              },
+              popupTemplate: {
+                title: "{assetId}",
+                content: [
+                  {
+                    type: "fields",
+                    fieldInfos: [
+                      {
+                        fieldName: "assetType",
+                        label: "Asset Type",
+                      },
+                      {
+                        fieldName: "diameter",
+                        label: "Diameter",
+                      },
+                      {
+                        fieldName: "material",
+                        label: "Material",
+                      },
+                      {
+                        fieldName: "installYear",
+                        label: "Install Year",
+                      },
+                      {
+                        fieldName: "condition",
+                        label: "Condition",
+                      },
+                      {
+                        fieldName: "status",
+                        label: "Status",
+                      },
+                    ],
+                  },
+                ],
+              },
+            }),
+        );
+
+        waterMainLayer.addMany(waterMainGraphics);
+      } catch (error) {
+        console.error("Unable to load water mains from API:", error);
+      }
+    };
+
+    void loadWaterMains();
+
+    const loadServiceZones = async () => {
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/api/service-zones",
     );
 
-    const valveGraphics = valves.map(
-      (valve) =>
-        new Graphic({
-          geometry: new Point({
-            longitude: valve.longitude,
-            latitude: valve.latitude,
-          }),
-          symbol: {
-            type: "simple-marker",
-            color: "orange",
-            size: 9,
-            outline: {
-              color: "white",
-              width: 1,
-            },
-          },
-          attributes: {
-            assetId: valve.assetId,
-            assetType: "Valve",
-            valveType: valve.valveType,
-            status: valve.status,
-            installYear: valve.installYear,
-          },
-          popupTemplate: {
-            title: "{assetId}",
-            content: [
-              {
-                type: "fields",
-                fieldInfos: [
-                  {
-                    fieldName: "assetType",
-                    label: "Asset Type",
-                  },
-                  {
-                    fieldName: "valveType",
-                    label: "Valve Type",
-                  },
-                  {
-                    fieldName: "status",
-                    label: "Status",
-                  },
-                  {
-                    fieldName: "installYear",
-                    label: "Install Year",
-                  },
-                ],
-              },
-            ],
-          },
-        }),
-    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to load service zones: ${response.status}`,
+      );
+    }
 
-    const waterMainGraphics = waterMains.map(
-      (main) =>
-        new Graphic({
-          geometry: new Polyline({
-            paths: main.paths,
-            spatialReference: {
-              wkid: 4326,
-            },
-          }),
-          symbol: {
-            type: "simple-line",
-            color: "blue",
-            width: 4,
-          },
-          attributes: {
-            assetId: main.assetId,
-            assetType: "Water Main",
-            diameter: main.diameter,
-            material: main.material,
-            installYear: main.installYear,
-            condition: main.condition,
-            status: main.status,
-          },
-          popupTemplate: {
-            title: "{assetId}",
-            content: [
-              {
-                type: "fields",
-                fieldInfos: [
-                  {
-                    fieldName: "assetType",
-                    label: "Asset Type",
-                  },
-                  {
-                    fieldName: "diameter",
-                    label: "Diameter",
-                  },
-                  {
-                    fieldName: "material",
-                    label: "Material",
-                  },
-                  {
-                    fieldName: "installYear",
-                    label: "Install Year",
-                  },
-                  {
-                    fieldName: "condition",
-                    label: "Condition",
-                  },
-                  {
-                    fieldName: "status",
-                    label: "Status",
-                  },
-                ],
-              },
-            ],
-          },
-        }),
-    );
+    const serviceZones: ServiceZoneApi[] = await response.json();
 
     const serviceZoneGraphics = serviceZones.map(
       (zone) =>
         new Graphic({
           geometry: new Polygon({
             rings: zone.rings,
+            spatialReference: {
+              wkid: 4326,
+            },
           }),
           symbol: {
             type: "simple-fill",
@@ -422,9 +532,13 @@ function App() {
     );
 
     serviceZoneLayer.addMany(serviceZoneGraphics);
-    waterMainLayer.addMany(waterMainGraphics);
-    hydrantLayer.addMany(hydrantGraphics);
-    valveLayer.addMany(valveGraphics);
+  } catch (error) {
+    console.error("Unable to load service zones from API:", error);
+  }
+};
+
+void loadServiceZones();
+
 
     return () => {
       clickHandler.remove();
@@ -989,7 +1103,7 @@ function App() {
                         ? "City of San Antonio"
                         : "Simulated Utility Data"}
                     </div>
-                    
+
                   </div>
                 ))}
               </>
