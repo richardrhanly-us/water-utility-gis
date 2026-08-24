@@ -18,11 +18,13 @@ import * as intersectsOperator from "@arcgis/core/geometry/operators/intersectsO
 
 import { hydrants, valves, waterMains, serviceZones } from "./data/utilityData";
 import { matchesWaterMainFilters } from "./utils/filterWaterMains";
+import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 
 type NearbyAsset = {
   assetId: string;
   assetType: string;
   status: string;
+  source?: "simulated" | "public";
 };
 
 type SelectedAsset = {
@@ -56,6 +58,7 @@ function App() {
   const valveLayerRef = useRef<GraphicsLayer | null>(null);
   const waterMainLayerRef = useRef<GraphicsLayer | null>(null);
   const resultsLayerRef = useRef<GraphicsLayer | null>(null);
+  const stormwaterLayerRef = useRef<FeatureLayer | null>(null);
 
   const selectedWaterMainRef = useRef<Graphic | null>(null);
 
@@ -89,10 +92,68 @@ function App() {
     valveLayerRef.current = valveLayer;
     resultsLayerRef.current = resultsLayer;
 
+    const stormwaterLayer = new FeatureLayer({
+      url: "https://services.arcgis.com/g1fRTDLeMgspWrYp/arcgis/rest/services/StormwaterUnderground/FeatureServer/0",
+      title: "San Antonio Stormwater Underground",
+      outFields: ["*"],
+      visible: true,
+
+      renderer: {
+        type: "simple",
+        symbol: {
+          type: "simple-line",
+          color: "#00a6c8",
+          width: 2,
+        },
+      },
+
+      popupTemplate: {
+        title: "{MSAG_Name}",
+        content: [
+          {
+            type: "fields",
+            fieldInfos: [
+              {
+                fieldName: "StructureType",
+                label: "Structure Type",
+              },
+              {
+                fieldName: "Material",
+                label: "Material",
+              },
+              {
+                fieldName: "Diameter_Inches",
+                label: "Diameter (in)",
+              },
+              {
+                fieldName: "YearConstructed",
+                label: "Year Constructed",
+              },
+              {
+                fieldName: "Status",
+                label: "Status",
+              },
+              {
+                fieldName: "ConditionScore",
+                label: "Condition Score",
+              },
+              {
+                fieldName: "MaintenanceResponsibility",
+                label: "Maintenance Responsibility",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    stormwaterLayerRef.current = stormwaterLayer;
+
     const map = new Map({
       basemap: "streets-navigation-vector",
       layers: [
         serviceZoneLayer,
+        stormwaterLayer,
         waterMainLayer,
         hydrantLayer,
         valveLayer,
@@ -374,6 +435,7 @@ function App() {
       hydrantLayerRef.current = null;
       valveLayerRef.current = null;
       resultsLayerRef.current = null;
+      stormwaterLayerRef.current = null;
     };
   }, []);
 
@@ -438,14 +500,21 @@ function App() {
     const hydrantLayer = hydrantLayerRef.current;
     const valveLayer = valveLayerRef.current;
     const resultsLayer = resultsLayerRef.current;
+    const stormwaterLayer = stormwaterLayerRef.current;
 
     if (
       !selectedMain ||
-      !selectedMain.geometry ||
       !hydrantLayer ||
       !valveLayer ||
-      !resultsLayer
+      !resultsLayer ||
+      !stormwaterLayer
     ) {
+      return;
+    }
+
+    const selectedMainGeometry = selectedMain.geometry;
+
+    if (!selectedMainGeometry) {
       return;
     }
 
@@ -456,7 +525,7 @@ function App() {
     }
 
     const bufferGeometry = geodesicBufferOperator.execute(
-      selectedMain.geometry,
+      selectedMainGeometry,
       bufferDistance,
       {
         unit: "feet",
@@ -481,6 +550,7 @@ function App() {
 
     resultsLayer.add(bufferGraphic);
 
+    // Find simulated hydrants and valves inside the buffer.
     const candidateAssets = [
       ...hydrantLayer.graphics.toArray(),
       ...valveLayer.graphics.toArray(),
@@ -494,14 +564,47 @@ function App() {
       return intersectsOperator.execute(bufferGeometry, graphic.geometry);
     });
 
-    const resultAssets: NearbyAsset[] = intersectingAssets.map((graphic) => ({
-      assetId: graphic.attributes?.assetId ?? "Unknown",
-      assetType: graphic.attributes?.assetType ?? "Unknown",
-      status: graphic.attributes?.status ?? "Unknown",
-    }));
+    const nearbySimulatedAssets: NearbyAsset[] = intersectingAssets.map(
+      (graphic) => ({
+        assetId: graphic.attributes?.assetId ?? "Unknown",
+        assetType: graphic.attributes?.assetType ?? "Unknown",
+        status: graphic.attributes?.status ?? "Unknown",
+        source: "simulated",
+      }),
+    );
 
-    setNearbyAssets(resultAssets);
+    // Query the live City of San Antonio stormwater FeatureLayer.
+    const stormwaterQuery = stormwaterLayer.createQuery();
 
+    stormwaterQuery.geometry = bufferGeometry;
+    stormwaterQuery.spatialRelationship = "intersects";
+    stormwaterQuery.returnGeometry = true;
+    stormwaterQuery.outFields = [
+      "OBJECTID",
+      "StructureType",
+      "Material",
+      "Diameter_Inches",
+      "YearConstructed",
+      "Status",
+      "ConditionScore",
+    ];
+
+    const stormwaterResults =
+      await stormwaterLayer.queryFeatures(stormwaterQuery);
+
+    const nearbyStormwaterAssets: NearbyAsset[] =
+      stormwaterResults.features.map((feature) => ({
+        assetId: `SW-${feature.attributes?.OBJECTID ?? "Unknown"}`,
+        assetType:
+          feature.attributes?.StructureType ?? "Stormwater Infrastructure",
+        status: feature.attributes?.Status ?? "Unknown",
+        source: "public",
+      }));
+
+    // Put simulated and public-service results into the same results panel.
+    setNearbyAssets([...nearbySimulatedAssets, ...nearbyStormwaterAssets]);
+
+    // Highlight nearby simulated hydrants and valves.
     intersectingAssets.forEach((graphic) => {
       if (!graphic.geometry) {
         return;
@@ -521,6 +624,24 @@ function App() {
       });
 
       resultsLayer.add(highlightGraphic);
+    });
+
+    // Highlight stormwater lines returned by the live FeatureLayer query.
+    stormwaterResults.features.forEach((feature) => {
+      if (!feature.geometry) {
+        return;
+      }
+
+      const stormwaterHighlight = new Graphic({
+        geometry: feature.geometry,
+        symbol: {
+          type: "simple-line",
+          color: "#ff00ff",
+          width: 5,
+        },
+      });
+
+      resultsLayer.add(stormwaterHighlight);
     });
   };
 
@@ -855,6 +976,20 @@ function App() {
                     >
                       Status: {asset.status}
                     </div>
+
+                    <div
+                      style={{
+                        marginTop: "2px",
+                        fontSize: "12px",
+                        color: "#666",
+                      }}
+                    >
+                      Source:{" "}
+                      {asset.source === "public"
+                        ? "City of San Antonio"
+                        : "Simulated Utility Data"}
+                    </div>
+                    
                   </div>
                 ))}
               </>
