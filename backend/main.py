@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
+from database import get_connection
 
 app = FastAPI(
     title="Water Utility GIS API",
@@ -246,18 +246,128 @@ def health_check():
 
 @app.get("/api/hydrants", response_model=list[Hydrant])
 def get_hydrants():
-    return hydrants
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                asset_id,
+                status,
+                inspection_date,
+                flow_rating_gpm,
+                ST_X(geom) AS longitude,
+                ST_Y(geom) AS latitude
+                FROM hydrants
+                ORDER BY asset_id;
+                """
+            )
+
+            rows = cursor.fetchall()
+
+            return [
+        Hydrant(
+            assetId=row["asset_id"],
+            longitude=row["longitude"],
+            latitude=row["latitude"],
+            status=row["status"],
+            inspectionDate=row["inspection_date"].isoformat(),
+            flowRatingGpm=row["flow_rating_gpm"],
+        )
+        for row in rows
+    ]
 
 
 @app.get("/api/valves", response_model=list[Valve])
 def get_valves():
-    return valves
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                asset_id,
+                valve_type,
+                status,
+                install_year,
+                ST_X(geom) AS longitude,
+                ST_Y(geom) AS latitude
+                FROM valves
+                ORDER BY asset_id;
+                """
+            )
+
+            rows = cursor.fetchall()
+
+            return [
+        Valve(
+            assetId=row["asset_id"],
+            longitude=row["longitude"],
+            latitude=row["latitude"],
+            valveType=row["valve_type"],
+            status=row["status"],
+            installYear=row["install_year"],
+        )
+        for row in rows
+    ]
 
 
 @app.get("/api/water-mains", response_model=list[WaterMain])
 def get_water_mains():
-    return water_mains
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                asset_id,
+                diameter,
+                material,
+                install_year,
+                condition,
+                status,
+                ST_AsGeoJSON(geom)::json AS geometry
+                FROM water_mains
+                ORDER BY asset_id;
+                """
+            )
+
+            rows = cursor.fetchall()
+
+            return [
+        WaterMain(
+            assetId=row["asset_id"],
+            paths=[row["geometry"]["coordinates"]],
+            diameter=row["diameter"],
+            material=row["material"],
+            installYear=row["install_year"],
+            condition=row["condition"],
+            status=row["status"],
+        )
+        for row in rows
+    ]
 
 @app.get("/api/service-zones", response_model=list[ServiceZone])
 def get_service_zones():
-    return service_zones
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                zone_id,
+                zone_name,
+                status,
+                ST_AsGeoJSON(geom)::json AS geometry
+                FROM service_zones
+                ORDER BY zone_id;
+                """
+            )
+
+            rows = cursor.fetchall()
+
+            return [
+        ServiceZone(
+            zoneId=row["zone_id"],
+            zoneName=row["zone_name"],
+            status=row["status"],
+            rings=row["geometry"]["coordinates"],
+        )
+        for row in rows
+    ]
