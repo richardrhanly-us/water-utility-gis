@@ -73,6 +73,8 @@ type SelectedAsset = {
   flowRatingGpm?: number;
 };
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
 function App() {
   const mapDiv = useRef<HTMLDivElement | null>(null);
 
@@ -253,7 +255,7 @@ function App() {
 
     const loadHydrants = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/hydrants");
+        const response = await fetch(`${API_BASE_URL}/api/hydrants`);
 
         if (!response.ok) {
           throw new Error(`Failed to load hydrants: ${response.status}`);
@@ -314,7 +316,6 @@ function App() {
         );
 
         hydrantLayer.addMany(hydrantGraphics);
-
       } catch (error) {
         console.error("Unable to load hydrants from API:", error);
       }
@@ -324,7 +325,7 @@ function App() {
 
     const loadValves = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/valves");
+        const response = await fetch(`${API_BASE_URL}/api/valves`);
 
         if (!response.ok) {
           throw new Error(`Failed to load valves: ${response.status}`);
@@ -394,14 +395,10 @@ function App() {
 
     const loadWaterMains = async () => {
       try {
-        const response = await fetch(
-          "http://127.0.0.1:8000/api/water-mains",
-        );
+        const response = await fetch(`${API_BASE_URL}/api/water-mains`);
 
         if (!response.ok) {
-          throw new Error(
-            `Failed to load water mains: ${response.status}`,
-          );
+          throw new Error(`Failed to load water mains: ${response.status}`);
         }
 
         const waterMains: WaterMainApi[] = await response.json();
@@ -475,70 +472,65 @@ function App() {
     void loadWaterMains();
 
     const loadServiceZones = async () => {
-  try {
-    const response = await fetch(
-      "http://127.0.0.1:8000/api/service-zones",
-    );
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/service-zones`,);
 
-    if (!response.ok) {
-      throw new Error(
-        `Failed to load service zones: ${response.status}`,
-      );
-    }
+        if (!response.ok) {
+          throw new Error(`Failed to load service zones: ${response.status}`);
+        }
 
-    const serviceZones: ServiceZoneApi[] = await response.json();
+        const serviceZones: ServiceZoneApi[] = await response.json();
 
-    const serviceZoneGraphics = serviceZones.map(
-      (zone) =>
-        new Graphic({
-          geometry: new Polygon({
-            rings: zone.rings,
-            spatialReference: {
-              wkid: 4326,
-            },
-          }),
-          symbol: {
-            type: "simple-fill",
-            color: [0, 120, 255, 0.12],
-            outline: {
-              color: [0, 120, 255],
-              width: 2,
-            },
-          },
-          attributes: {
-            zoneId: zone.zoneId,
-            zoneName: zone.zoneName,
-            status: zone.status,
-          },
-          popupTemplate: {
-            title: "{zoneName}",
-            content: [
-              {
-                type: "fields",
-                fieldInfos: [
+        const serviceZoneGraphics = serviceZones.map(
+          (zone) =>
+            new Graphic({
+              geometry: new Polygon({
+                rings: zone.rings,
+                spatialReference: {
+                  wkid: 4326,
+                },
+              }),
+              symbol: {
+                type: "simple-fill",
+                color: [0, 120, 255, 0.12],
+                outline: {
+                  color: [0, 120, 255],
+                  width: 2,
+                },
+              },
+              attributes: {
+                zoneId: zone.zoneId,
+                zoneName: zone.zoneName,
+                status: zone.status,
+              },
+              popupTemplate: {
+                title: "{zoneName}",
+                content: [
                   {
-                    fieldName: "zoneId",
-                    label: "Zone ID",
-                  },
-                  {
-                    fieldName: "status",
-                    label: "Status",
+                    type: "fields",
+                    fieldInfos: [
+                      {
+                        fieldName: "zoneId",
+                        label: "Zone ID",
+                      },
+                      {
+                        fieldName: "status",
+                        label: "Status",
+                      },
+                    ],
                   },
                 ],
               },
-            ],
-          },
-        }),
-    );
+            }),
+        );
 
-    serviceZoneLayer.addMany(serviceZoneGraphics);
-  } catch (error) {
-    console.error("Unable to load service zones from API:", error);
-  }
-};
+        serviceZoneLayer.addMany(serviceZoneGraphics);
+      } catch (error) {
+        console.error("Unable to load service zones from API:", error);
+      }
+    };
 
-void loadServiceZones();
-
+    void loadServiceZones();
 
     return () => {
       clickHandler.remove();
@@ -1103,7 +1095,6 @@ void loadServiceZones();
                         ? "City of San Antonio"
                         : "Simulated Utility Data"}
                     </div>
-
                   </div>
                 ))}
               </>
